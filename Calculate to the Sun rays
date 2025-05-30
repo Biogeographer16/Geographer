@@ -1,0 +1,53 @@
+Calculate the angle of incidence of sun rays
+import math
+from datetime import datetime
+import matplotlib.pyplot as plt
+
+# 1. Şehir bilgileri (enlem)
+cities = {
+    "İstanbul": 41.01,
+    "Erzurum": 39.90,
+    "İzmir": 38.42
+}
+
+# 2. Güneş açı hesaplama (basitleştirilmiş formül)
+def solar_elevation(latitude, day_of_year, hour):
+    declination = 23.44 * math.cos(math.radians((360 / 365) * (day_of_year - 172)))  # 21 Haziran ~172.gün
+    hour_angle = 15 * (hour - 12)  # Saat farkı
+    sin_elevation = (math.sin(math.radians(latitude)) * math.sin(math.radians(declination)) +
+                     math.cos(math.radians(latitude)) * math.cos(math.radians(declination)) *
+                     math.cos(math.radians(hour_angle)))
+    elevation_angle = math.degrees(math.asin(sin_elevation))
+    return max(elevation_angle, 0)
+
+# 3. Gölge boyu hesabı (1 metrelik cisim için)
+def shadow_length(elevation_angle):
+    if elevation_angle <= 0:
+        return float("inf")
+    return round(1 / math.tan(math.radians(elevation_angle)), 2)
+
+# 4. Hesaplama – 21 Haziran, saat 12:00
+day_of_year = 172  # 21 Haziran
+hour = 12
+results = []
+
+for city, lat in cities.items():
+    angle = solar_elevation(lat, day_of_year, hour)
+    shadow = shadow_length(angle)
+    results.append((city, lat, angle, shadow))
+
+# 5. Sonuçları yazdır
+print("21 Haziran - Saat 12:00'de Gölge Boyları (1 metrelik cisim için):\n")
+for city, lat, angle, shadow in results:
+    print(f"{city:10} | Enlem: {lat:.2f}° | Güneş Açısı: {angle:.2f}° | Gölge Boyu: {shadow} m")
+
+# 6. Görselleştirme
+cities_list, _, angles, shadows = zip(*results)
+plt.figure(figsize=(8,5))
+plt.bar(cities_list, shadows, color='goldenrod')
+plt.title("21 Haziran - Saat 12:00'de Gölge Boyları")
+plt.ylabel("Gölge Boyu (metre)")
+plt.xlabel("Şehir")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
