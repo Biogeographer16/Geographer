@@ -1,0 +1,56 @@
+Dünya Yerleşim
+
+# Gerekli kütüphaneleri yükle
+!pip install geopandas matplotlib contextily requests pillow
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import contextily as ctx
+import requests
+from io import BytesIO
+from PIL import Image
+import numpy as np
+
+# 1. Natural Earth verisini yükle (ülke sınırları)
+naturalearth_url = "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
+world = gpd.read_file(naturalearth_url)
+
+# 2. NASA Black Marble (gece ışıkları) görselini indir
+# Küresel düşük çözünürlüklü örnek görsel
+night_lights_url = "https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_01deg.jpg"
+
+try:
+    # Görseli indir ve yükle
+    response = requests.get(night_lights_url)
+    night_img = Image.open(BytesIO(response.content))
+    print("NASA gece ışıkları verisi başarıyla yüklendi!")
+except Exception as e:
+    print(f"NASA verisi indirilemedi: {e}")
+    night_img = None
+
+# 3. Haritayı oluştur
+fig, ax = plt.subplots(figsize=(20, 12), facecolor='black')
+
+# Ülke sınırlarını çiz
+world.plot(ax=ax, color='none', edgecolor='white', linewidth=0.5)
+
+# Gece ışıklarını ekle
+if night_img:
+    # Görseli numpy array'e çevir
+    img_array = np.array(night_img)
+    
+    # Görseli haritaya ekle (düzgün konumlandırma için)
+    ax.imshow(img_array, 
+              extent=[-180, 180, -90, 90],  # Tüm dünyayı kapsayacak şekilde
+              alpha=0.7, 
+              cmap='viridis',
+              origin='upper')
+
+# Başlık ve stil ayarları
+ax.set_title('Dünya Yerleşim Haritası\nNASA Black Marble Gece Işıkları (2016)', 
+            fontsize=22, pad=20, color='white', 
+            fontweight='bold')
+ax.set_axis_off()
+
+plt.tight_layout()
+plt.savefig('dunya_yerlesim_haritasi.png', dpi=300, bbox_inches='tight', facecolor='black')
+plt.show()
