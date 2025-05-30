@@ -1,0 +1,68 @@
+NOAA CPC Global Unified Precipitation:
+NetCDF analysis 
+
+# Gerekli kütüphaneleri yükle
+!pip install xarray netCDF4 cartopy matplotlib cmocean
+import xarray as xr
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+import cmocean
+import numpy as np
+from datetime import datetime
+
+def get_precipitation_data():
+    """NOAA'dan yağış verisini alır veya örnek veri yükler"""
+    try:
+        # NOAA CPC Global Unified Gauge-Based Analysis of Daily Precipitation
+        url = "https://downloads.psl.noaa.gov/Datasets/cpc_global_precip/precip.2023.nc"
+        data = xr.open_dataset(url)
+        print("NOAA CPC Global Precipitation verisi başarıyla yüklendi")
+        return data
+        
+    except Exception as e:
+        print(f"NOAA verisi alınamadı: {str(e)}")
+        print("Örnek veri kullanılıyor...")
+        return xr.tutorial.open_dataset("air_temperature")
+
+# Veriyi yükle
+data = get_precipitation_data()
+
+# Görselleştirme
+plt.figure(figsize=(16, 10))
+
+# Harita projeksiyonu
+ax = plt.axes(projection=ccrs.PlateCarree())
+
+# Veri kontrolü ve çizim
+if 'precip' in data:
+    # Son günün yağış verisini seç
+    last_time = data.time[-1].values
+    precip = data['precip'].sel(time=last_time)
+    
+    # Veriyi çiz (log scale ile)
+    img = precip.plot(ax=ax, transform=ccrs.PlateCarree(),
+                    cmap=cmocean.cm.rain,
+                    norm=colors.LogNorm(vmin=0.1, vmax=100),
+                    add_colorbar=False)
+    
+    # Renk çubuğu
+    cbar = plt.colorbar(img, ax=ax, orientation='horizontal', pad=0.05, shrink=0.6)
+    cbar.set_label('Günlük Yağış Miktarı (mm/gün)', fontsize=12)
+    
+    title_date = np.datetime_as_string(last_time, unit='D')
+    plt.title(f'NOAA Global Yağış Dağılımı - {title_date}', fontsize=16, pad=20)
+
+elif 'air' in data:
+    # Örnek veri kullanılıyorsa
+    data['air'].isel(time=0).plot(ax=ax, transform=ccrs.PlateCarree())
+    plt.title('North America 4xDaily Air Temperature Map', fontsize=16, pad=20)
+
+# Harita özellikleri ekle
+ax.add_feature(cfeature.LAND, facecolor='lightgray')
+ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
+ax.add_feature(cfeature.BORDERS, linestyle=':', linewidth=0.5)
+ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
