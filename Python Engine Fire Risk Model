@@ -1,0 +1,100 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.preprocessing import StandardScaler
+from imblearn.over_sampling import SMOTE
+from xgboost import XGBClassifier
+
+# 1. Create sample data (EFFIS-like format)
+np.random.seed(42)
+data = {
+    "latitude": np.random.uniform(35, 60, 1000),
+    "longitude": np.random.uniform(-10, 30, 1000),
+    "temperature": np.random.randint(15, 40, 1000),
+    "humidity": np.random.randint(10, 80, 1000),
+    "wind_speed": np.random.uniform(0, 25, 1000),
+    "fire_risk": np.random.choice([0, 1], 1000, p=[0.7, 0.3])  # Imbalanced data (70% no fire)
+}
+df = pd.DataFrame(data)
+
+# 2. Data Preprocessing
+X = df.drop("fire_risk", axis=1)
+y = df["fire_risk"]
+
+# Scale features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Balance data with SMOTE
+smote = SMOTE(random_state=42)
+X_resampled, y_resampled = smote.fit_resample(X_scaled, y)
+
+# 3. Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    X_resampled, y_resampled, test_size=0.3, random_state=42
+)
+
+# 4. RandomForest with Hyperparameter Tuning
+params_rf = {
+    'n_estimators': [50, 100, 200],
+    'max_depth': [3, 5, 10]
+}
+grid_rf = GridSearchCV(RandomForestClassifier(random_state=42), params_rf, cv=5)
+grid_rf.fit(X_train, y_train)
+best_rf = grid_rf.best_estimator_
+
+# 5. XGBoost Model
+model_xgb = XGBClassifier(random_state=42)
+model_xgb.fit(X_train, y_train)
+
+# 6. Model Evaluation
+print("\nRandomForest Results:")
+y_pred_rf = best_rf.predict(X_test)
+print(classification_report(y_test, y_pred_rf))
+
+print("\nXGBoost Results:")
+y_pred_xgb = model_xgb.predict(X_test)
+print(classification_report(y_test, y_pred_xgb))
+
+# 7. Visualization
+# Risk Map
+df_test = pd.DataFrame(X_test, columns=X.columns)
+df_test["fire_risk_pred"] = y_pred_xgb
+
+plt.figure(figsize=(12, 8))
+plt.scatter(
+    df_test["longitude"],
+    df_test["latitude"],
+    c=df_test["fire_risk_pred"],
+    cmap="Reds",
+    alpha=0.6
+)
+plt.colorbar(label="Predicted Fire Risk (0=Low, 1=High)")
+plt.xlabel("Longitude")
+plt.ylabel("Latitude")
+plt.title("EFFIS-like Fire Risk Map (XGBoost Predictions)")
+plt.grid()
+plt.show()
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_pred_xgb)
+sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("XGBoost Confusion Matrix")
+plt.show()
+
+# 8. Feature Importance
+feature_importance = pd.DataFrame({
+    'Feature': X.columns,
+    'Importance': model_xgb.feature_importances_
+}).sort_values('Importance', ascending=False)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Importance', y='Feature', data=feature_importance)
+plt.title('Feature Importance (XGBoost)')
+plt.show()
