@@ -1,204 +1,130 @@
-# Requiry libraries
-!pip install cartopy matplotlib imageio pandas numpy requests
+# Gerekli kütüphanelerin yüklenmesi
+!pip install cartopy matplotlib pandas numpy requests
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from datetime import datetime, timedelta
-import imageio
-import os
+import matplotlib.patheffects as path_effects
+import matplotlib.font_manager as fm
 import requests
 from io import StringIO
-import time
 
-# NASA FIRMS VIIRS data source (last 24 hours)
+# NASA FIRMS VIIRS veri kaynağı (Son 24 saat)
 VIIRS_URL = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv"
 
-# VIIRS data analysis
-def get_viirs_fire_data():
+# Basit ve temiz yangın haritası oluşturma (düzeltilmiş)
+def create_clean_fire_map():
+    # Veriyi indir
     try:
-        print("VIIRS data dowload...")
-        start_time = time.time()
-        response = requests.get(VIIRS_URL, timeout=60)
-        response.raise_for_status()
-        
-        # Load data into DataFrame
+        response = requests.get(VIIRS_URL, timeout=30)
         df = pd.read_csv(StringIO(response.text))
-        download_time = time.time() - start_time
-        print(f"Veri indirme süresi: {download_time:.2f}s - {len(df)} yangın noktası bulundu.")
-        
-        # VIIRS data structure
-        print("Mevcut sütunlar:", df.columns.tolist())
-        
-        # Date/o'lock transformation (VIIRS file)
-        if 'acq_date' in df.columns and 'acq_time' in df.columns:
-            df['acq_datetime'] = pd.to_datetime(
-                df['acq_date'] + ' ' + df['acq_time'].astype(str).str.zfill(4),
-                format='%Y-%m-%d %H%M'
-            )
-        else:
-            print("Uyarı: Tarih sütunu bulunamadı. Şimdiki zaman kullanılacak.")
-            df['acq_datetime'] = datetime.utcnow()
-            
-        return df
-    
-    except Exception as e:
-        print(f"VIIRS data error: {e}")
-        print("Use a sample data..")
-        # Sample data 
-        return pd.DataFrame({
-            'latitude': [38.0, 34.5, -25.0, 40.0, -35.0, 50.0],
-            'longitude': [35.0, 51.5, 134.0, -120.0, 150.0, -100.0],
-            'acq_datetime': [datetime.utcnow() - timedelta(hours=i) for i in range(6)],
-            'bright_ti4': [350, 420, 380, 310, 290, 400],
-            'confidence': ['high', 'nominal', 'high', 'low', 'nominal', 'high']
+        print(f"{len(df)} yangın noktası yüklendi.")
+    except:
+        print("Gerçek veri indirilemedi, örnek veri kullanılıyor.")
+        df = pd.DataFrame({
+            'latitude': np.random.uniform(-55, 70, 500),
+            'longitude': np.random.uniform(-180, 180, 500),
+            'confidence': np.random.choice(['high', 'nominal', 'low'], 500, p=[0.6, 0.3, 0.1]),
+            'bright_ti4': np.random.randint(300, 500, 500)
         })
 
-# Creating a physical map
-def create_base_map(ax):
-    ax.clear()
+    # Haritayı oluştur
+    plt.figure(figsize=(15, 8))
+    ax = plt.axes(projection=ccrs.PlateCarree())
     ax.set_global()
-    ax.add_feature(cfeature.OCEAN, facecolor='#a6d6ff', zorder=0)
-    ax.add_feature(cfeature.LAND, facecolor='#e5e5e5', zorder=0)
-    ax.add_feature(cfeature.COASTLINE, linewidth=0.8, zorder=1)
-    ax.add_feature(cfeature.BORDERS, linestyle=':', linewidth=0.5, zorder=1)
-    ax.add_feature(cfeature.LAKES, alpha=0.5, facecolor='#a6d6ff', zorder=0)
-    return ax
 
-# Cretaing a fire animation
-def create_viirs_fire_animation():
-    # Veriyi al
-    fire_df = get_viirs_fire_data()
-    
-    # Set time intervals (3-hour intervals)
-    if not fire_df.empty and 'acq_datetime' in fire_df.columns:
-        start_time = fire_df['acq_datetime'].min().floor('H')
-        end_time = fire_df['acq_datetime'].max().ceil('H')
-        time_intervals = pd.date_range(start_time, end_time, freq='3H')
-        print(f"{len(time_intervals)} zaman dilimi oluşturuldu.")
-    else:
-        print("Warning: No time information found. Single frame to be created.")
-        time_intervals = [datetime.utcnow()]
-    
-    # Visualisation settings
-    fig = plt.figure(figsize=(15, 8))
-    ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-    
-    # Build fire frames
-    frame_files = []
-    total_frames = len(time_intervals)
-    
-    for i, interval_end in enumerate(time_intervals):
-        print(f"\nKare {i+1}/{total_frames} işleniyor...")
-        interval_start = interval_end - timedelta(hours=3)
-        
-        # Filter by time range
-        if not fire_df.empty and 'acq_datetime' in fire_df.columns:
-            mask = (fire_df['acq_datetime'] >= interval_start) & (fire_df['acq_datetime'] < interval_end)
-            df_interval = fire_df.loc[mask].copy()
-        else:
-            df_interval = fire_df.copy()
-        
-        # Create the base map
-        ax = create_base_map(ax)
-        
-        # VIIRS fire points
-        if not df_interval.empty:
-            # Risk colours
-            confidence_colors = {
-                'high': 'red',
-                'nominal': 'orange',
-                'low': 'yellow',
-                'n': 'orange',  # Alternatif etiket
-                'h': 'red',     # Alternatif etiket
-                'l': 'yellow'   # Alternatif etiket
-            }
-            
-            # colour assignment
-            df_interval['color'] = df_interval['confidence'].str.lower().map(
-                lambda x: confidence_colors.get(x, 'yellow')
+    # Minimalist arkaplan
+    ax.add_feature(cfeature.OCEAN, facecolor='#f0f8ff')  # Açık mavi
+    ax.add_feature(cfeature.LAND, facecolor='#f5f5f5')    # Açık gri
+    ax.add_feature(cfeature.COASTLINE, linewidth=0.5, edgecolor='#999999')
+
+    # Yangın noktalarını çiz
+    colors = {
+        'high': '#e41a1c',    # Kırmızı
+        'nominal': '#ff7f00',  # Turuncu
+        'low': '#ffff33'       # Sarı
+    }
+
+    # Lejant için boş scatter plotlar oluştur
+    for conf, color in colors.items():
+        df_conf = df[df['confidence'].str.lower() == conf.lower()]
+        if not df_conf.empty:
+            ax.scatter(
+                df_conf['longitude'],
+                df_conf['latitude'],
+                color=color,
+                s=8,  # Sabit küçük boyut
+                alpha=0.7,
+                edgecolors='none',
+                transform=ccrs.PlateCarree()
             )
-            
-            # VIIRS special parameters
-            if 'bright_ti4' in df_interval.columns:
-                sizes = df_interval['bright_ti4'] * 0.05  # Parlaklığa göre boyut
-            else:
-                sizes = 30  # Varsayılan boyut
-            
-            # Draw fire points
-            sc = ax.scatter(
-                df_interval['longitude'], 
-                df_interval['latitude'],
-                c=df_interval['color'],
-                s=sizes,
-                alpha=0.8,
-                edgecolors='black',
-                linewidth=0.3,
-                transform=ccrs.PlateCarree(),
-                zorder=2
-            )
-            
-            # Show the number of fires in the title
-            fire_count = len(df_interval)
-        else:
-            fire_count = 0
-        
-        # Title and informations
-        title = f"NASA VIIRS Global Forest Fire Monitoring\n{interval_end.strftime('%Y-%m-%d %H:%M')} UTC - {fire_count} Fire"
-        plt.title(title, fontsize=14, pad=20)
-        
-        # Lejant ekle
-        legend_elements = [
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='red', markersize=8, label='High risk'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='orange', markersize=8, label='Moderate risk'),
-            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='yellow', markersize=8, label='Low risk')
-        ]
-        ax.legend(handles=legend_elements, loc='lower left', framealpha=0.9)
-        
-        # Save frame
-        frame_file = f"viirs_frame_{i:03d}.png"
-        plt.savefig(frame_file, bbox_inches='tight', dpi=100, transparent=False)
-        frame_files.append(frame_file)
-        print(f"Çerçeve oluşturuldu: {frame_file} - Yangın Sayısı: {fire_count}")
-    
-    # GIF create
-    if frame_files:
-        gif_path = 'viirs_global_fire_animation.gif'
-        print("\nGIF oluşturuluyor...")
-        
-        images = []
-        for frame in frame_files:
-            images.append(imageio.imread(frame))
-        
-        imageio.mimsave(gif_path, images, duration=0.7)
-        
-        # Clear temporary files
-        for frame in frame_files:
-            if os.path.exists(frame):
-                os.remove(frame)
-        
-        return gif_path
-    else:
-        return None
 
-# Create and show animation
-print("="*50)
-print("NASA VIIRS Global Yangın Animasyonu Oluşturuluyor")
-print("="*50)
-start_time = time.time()
+    # 1. LEJANT (Harita içinde, sağ üst köşede)
+    legend_labels = ['High risk', 'Moderate risk', 'Low risk']
+    legend_colors = [colors['high'], colors['nominal'], colors['low']]
 
-gif_path = create_viirs_fire_animation()
-execution_time = time.time() - start_time
+    # Lejant öğeleri
+    legend_elements = [
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color,
+                  markersize=8, label=label)
+        for color, label in zip(legend_colors, legend_labels)
+    ]
 
-if gif_path and os.path.exists(gif_path):
-    print(f"\n✔️ Animasyon başarıyla oluşturuldu: {gif_path}")
-    print(f"⏱️ Toplam süre: {execution_time:.2f} saniye")
-    
-    # GIF'i show
-    from IPython.display import Image
-    display(Image(filename=gif_path))
-    
-    # Size control
-    file_size = os.path.getsize(gif_path) / (1024 * 1024)
-    print(f"📁 File control: {file_size:.2f} MB")
+    # Lejantı haritanın içine yerleştir - Harita içinde ölçek çubuğunun bir üstüne ekle
+    legend = ax.legend(
+        handles=legend_elements,
+        loc='center left',
+        frameon=True,
+        framealpha=0.9,
+        fontsize=10,
+        title='Wildfire Risk Stages',
+        title_fontsize=11
+    )
+    legend.get_frame().set_facecolor('white')
+    legend.get_frame().set_edgecolor('#cccccc')
+
+
+    # 3. ÖLÇEK ÇUBUĞU - Harita içinde, sol altta
+    # 2000 km'lik ölçek çubuğu (ekvatorda yaklaşık 18 derece)
+    scale_length_deg = 18  # Ekvatorda 2000 km ≈ 18 derece
+
+    # Ölçek çubuğunun başlangıç noktası (sol altta)
+    start_lon, start_lat = -170, -55
+
+    # Ölçek çizgisi
+    ax.plot([start_lon, start_lon + scale_length_deg],
+            [start_lat, start_lat],
+            color='black', linewidth=2,
+            transform=ccrs.PlateCarree())
+
+    # Ölçek uçlarındaki dikey çizgiler
+    for lon in [start_lon, start_lon + scale_length_deg]:
+        ax.plot([lon, lon],
+                [start_lat - 1, start_lat + 1],
+                color='black', linewidth=2,
+                transform=ccrs.PlateCarree())
+
+    # Ölçek etiketi
+    ax.text(start_lon + scale_length_deg/2,
+            start_lat - 3,
+            '2000 km',
+            ha='center', va='top',
+            fontsize=10, weight='bold',
+            transform=ccrs.PlateCarree(),
+            path_effects=[path_effects.withStroke(linewidth=2, foreground='white')])
+
+    # 4. BAŞLIK VE KAYNAK
+    plt.title('Global wildfire distribution - last 24 hours', fontsize=16, pad=20)
+
+    # Kaynak bilgisi (küçük ve sade)
+    plt.figtext(0.5, 0.01, "Source: NASA FIRMS | Data: last 24 hours",
+                ha="center", fontsize=9, color='#666666')
+
+    # Haritayı kaydet ve göster
+    plt.savefig('global_fires_fixed.png', bbox_inches='tight', dpi=150, transparent=True)
+    plt.show()
+    print("Harita oluşturuldu: global_fires_fixed.png")
+
+# Haritayı oluştur
+create_clean_fire_map()
