@@ -12,7 +12,7 @@ import requests
 from io import StringIO
 import time
 
-# NASA FIRMS VIIRS data source (recent 24 o'clock)
+# NASA FIRMS VIIRS data source (last 24 hours)
 VIIRS_URL = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv"
 
 # VIIRS data analysis
