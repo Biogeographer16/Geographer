@@ -1,0 +1,107 @@
+// 1. ANTALYA PROVİNCE DESCRİPTİON
+// =======================================================
+var turkey = ee.FeatureCollection("FAO/GAUL/2015/level1");
+var antalya = turkey.filter(ee.Filter.eq('ADM1_NAME', 'Antalya'));
+
+// Map center object to Antalya
+Map.centerObject(antalya, 9);
+
+// 2. VİSUAL PARAMETRİCS
+// =======================================================
+var commonPalette = [
+  'FFFFFF','CE7E45','DF923D','F1B555','FCD163','99B718','74A901','66A000',
+  '529400','3E8601','207401','056201','004C00','023B01','012E01','011D01','011301'
+];
+
+// Parametric revision
+var cov_vis = {min: 0, max: 2000, palette: commonPalette};
+var ASM1km_vis = {min: 300, max: 10000, palette: commonPalette};
+var std1km_vis = {min: 0, max: 800, palette: commonPalette};
+var ENT1km_vis = {min: 0, max: 38000, palette: commonPalette};
+var range1km_vis = {min: 0, max: 3000, palette: commonPalette};
+var COR1km_vis = {min: 0, max: 7000, palette: commonPalette};
+var simpson1km_vis = {min: 3000, max: 10000, palette: commonPalette};
+var VAR1km_vis = {min: 0, max: 300000, palette: commonPalette};
+var pielou1km_vis = {min: 5000, max: 10000, palette: commonPalette};
+var shannon5km_vis = {min: 0, max: 35000, palette: commonPalette};
+var HOM1km_vis = {min: 0, max: 10000, palette: commonPalette};
+var DIS1km_vis = {min: 0, max: 70000, palette: commonPalette};
+var shannon1km_vis = {min: 0, max: 27000, palette: commonPalette};
+var mean1km_vis = {min: 0, max: 8000, palette: commonPalette};
+var CON1km_vis = {min: 0, max: 400000, palette: commonPalette};
+var MAX1km_vis = {min: 0, max: 8000, palette: commonPalette};
+
+
+// 3. LAYERS to ADD MAP (.clip(antalya))
+// =======================================================
+Map.addLayer(cov.clip(antalya), cov_vis, 'Coefficient of Variation (CoV)');
+Map.addLayer(contrast.clip(antalya), CON1km_vis, 'Contrast');
+Map.addLayer(corr.clip(antalya), COR1km_vis, 'Correlation');
+Map.addLayer(dissimilarity.clip(antalya), DIS1km_vis, 'Dissimilarity');
+Map.addLayer(entropy.clip(antalya), ENT1km_vis, 'Entropy');
+Map.addLayer(homogeneity.clip(antalya), HOM1km_vis, 'Homogeneity');
+Map.addLayer(maximum.clip(antalya), MAX1km_vis, 'Maximum');
+Map.addLayer(mean.clip(antalya), mean1km_vis, 'Mean');
+Map.addLayer(pielou.clip(antalya), pielou1km_vis, 'Pielou');
+Map.addLayer(shannon.clip(antalya), shannon1km_vis, 'Shannon');
+Map.addLayer(simpson.clip(antalya), simpson1km_vis, 'Simpson');
+Map.addLayer(sd.clip(antalya), std1km_vis, 'Standard Deviation');
+Map.addLayer(uniformity.clip(antalya), ASM1km_vis, 'Uniformity');
+Map.addLayer(variance.clip(antalya), VAR1km_vis, 'Variance');
+
+
+// 4. LEGEND CREATED
+// =======================================================
+// Legend Panel
+var legend = ui.Panel({
+  style: {
+    position: 'bottom-right',
+    padding: '8px 15px',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)'
+  }
+});
+
+// Legend Title
+var legendTitle = ui.Label({
+  value: 'Habitat Heterogenity',
+  style: {fontWeight: 'bold', fontSize: '16px', margin: '0 0 4px 0', padding: '0'}
+});
+legend.add(legendTitle);
+
+var legendSubTitle = ui.Label({
+  value: '(Entropy Model Metrics)',
+  style: {fontSize: '12px', margin: '0 0 10px 0', padding: '0', color: '#555'}
+});
+legend.add(legendSubTitle);
+
+// Colour Scale (Gradient)
+var makeColorBarParams = {
+  bbox: [0, 0, 1, 0.1],
+  dimensions: '100x10',
+  format: 'png',
+  min: 0,
+  max: 1,
+  palette: commonPalette,
+};
+
+// Colorbar create
+var colorBar = ui.Thumbnail({
+  image: ee.Image.pixelLonLat().select(0),
+  params: makeColorBarParams,
+  style: {stretch: 'horizontal', margin: '0px 8px', maxHeight: '24px'},
+});
+legend.add(colorBar);
+
+// Min ve Max Labels
+var legendLabels = ui.Panel({
+  widgets: [
+    ui.Label('Low (Min)', {margin: '4px 8px'}),
+    ui.Label('', {stretch: 'horizontal'}), // Fill the middle with space
+    ui.Label('High (Max)', {margin: '4px 8px'})
+  ],
+  layout: ui.Panel.Layout.flow('horizontal')
+});
+legend.add(legendLabels);
+
+// Legend to add Map
+Map.add(legend);
